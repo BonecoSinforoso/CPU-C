@@ -50,6 +50,17 @@ public sealed partial class Strings
 
         WindowTitle = "CPU-C — CPU Controller",
         LanguageLabel = "Language:",
+
+        SettingsButton = "Settings",
+        SettingsTitle = "Settings",
+        AppearanceGroup = "Appearance",
+        ThemeLabel = "Theme:",
+        ThemeSystem = "Follow Windows",
+        ThemeLight = "Light",
+        ThemeDark = "Dark",
+        ThemeRestartQuestion = "The new theme takes effect when CPU-C restarts. Restart now?\n\nAn active limit stays active.",
+        SettingsSaveFailed = "Could not save the settings.",
+
         ProfileLabel = "Profile:",
         New = "New",
         Save = "Save",

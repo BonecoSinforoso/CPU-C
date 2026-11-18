@@ -102,6 +102,17 @@ public sealed partial class Strings
     public required Func<string, string> StatusNormal { get; init; }
     public required Func<string, string> PowerPlanReadFailed { get; init; }
 
+    // ---------- Settings ----------
+    public required string SettingsButton { get; init; }
+    public required string SettingsTitle { get; init; }
+    public required string AppearanceGroup { get; init; }
+    public required string ThemeLabel { get; init; }
+    public required string ThemeSystem { get; init; }
+    public required string ThemeLight { get; init; }
+    public required string ThemeDark { get; init; }
+    public required string ThemeRestartQuestion { get; init; }
+    public required string SettingsSaveFailed { get; init; }
+
     // ---------- Tray ----------
     public required string TrayOpen { get; init; }
     public required Func<string, string> TrayApply { get; init; }

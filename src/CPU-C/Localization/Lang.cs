@@ -1,15 +1,7 @@
 using System.Globalization;
-using System.Text.Json;
 using CpuC.Core;
 
 namespace CpuC.Localization;
-
-/// <summary>Preferences saved in %AppData%\CPU-C\settings.json.</summary>
-public sealed class AppSettings
-{
-    /// <summary>Language code ("en", "pt"). Empty = follow the Windows language.</summary>
-    public string Language { get; set; } = "";
-}
 
 /// <summary>
 /// Current interface language. The choice saved in settings.json wins; without one,
@@ -30,35 +22,13 @@ public static class Lang
     {
         T = language;
         if (!save) return;
-        try
-        {
-            AppSettings settings = LoadSettings() ?? new();
-            settings.Language = language.Code;
-            File.WriteAllText(AppPaths.SettingsFile, JsonSerializer.Serialize(settings, AppPaths.Json));
-        }
-        catch
-        {
-            // Not being able to remember the language is not worth an error message.
-        }
+        // Not being able to remember the language is not worth an error message.
+        AppSettings.Update(s => s.Language = language.Code);
     }
 
     private static Strings Initial()
     {
-        if (Find(LoadSettings()?.Language) is { } saved) return saved;
+        if (Find(AppSettings.Load().Language) is { } saved) return saved;
         return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "pt" ? Strings.Portuguese : Strings.English;
-    }
-
-    private static AppSettings? LoadSettings()
-    {
-        try
-        {
-            return File.Exists(AppPaths.SettingsFile)
-                ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), AppPaths.Json)
-                : null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }

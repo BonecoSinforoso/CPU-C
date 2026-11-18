@@ -19,7 +19,6 @@ public sealed class MainForm : Form
     private readonly bool _askAboutLeftover;
 
     private readonly ComboBox _profiles = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 170 };
-    private readonly ComboBox _language = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
     private readonly TrackBar _maxBar = NewBar(1);
     private readonly TrackBar _minBar = NewBar(0);
     private readonly NumericUpDown _maxBox = NewPercentBox(1);
@@ -27,7 +26,7 @@ public sealed class MainForm : Form
     private readonly Label _warning = new()
     {
         AutoSize = true,
-        ForeColor = Color.FromArgb(176, 92, 0),
+        ForeColor = Theme.Warning,
         Visible = false,
     };
     private readonly List<CheckBox> _coreBoxes = [];
@@ -117,6 +116,26 @@ public sealed class MainForm : Form
         foreach (Action update in _textUpdaters) update();
         UpdateStatus();
         ResumeLayout(true);
+    }
+
+    // ---------- Settings ----------
+
+    private void OpenSettings()
+    {
+        if (SettingsDialog.Show(this, AppSettings.Load().ThemeChoice) is not var (language, theme)) return;
+
+        ChangeLanguage(language);
+        if (theme == AppSettings.Load().ThemeChoice) return;
+        if (!AppSettings.Update(s => s.ThemeChoice = theme))
+        {
+            MessageBox.Show(this, Lang.T.SettingsSaveFailed, "CPU-C", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        if (theme == Theme.Applied) return;
+
+        DialogResult answer = MessageBox.Show(this, Lang.T.ThemeRestartQuestion, "CPU-C",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer == DialogResult.Yes) Restart(asAdmin: false);
     }
 
     // ---------- Building the window ----------
@@ -272,25 +291,24 @@ public sealed class MainForm : Form
         buttons.Controls.Add(_restore);
         if (!IsElevated()) buttons.Controls.Add(_admin);
 
-        FlowLayoutPanel language = new() { AutoSize = true, WrapContents = false, Anchor = AnchorStyles.Right, Margin = new Padding(0) };
-        language.Controls.Add(Localize(new Label { AutoSize = true, Margin = new Padding(3, 7, 0, 0) }, s => s.LanguageLabel));
-        language.Controls.Add(_language);
-        foreach (Strings option in Lang.All) _language.Items.Add(option);
-        _language.SelectedItem = Lang.T;
-        _language.SelectedIndexChanged += (_, _) =>
+        Button settings = Localize(new Button
         {
-            if (_language.SelectedItem is Strings chosen) ChangeLanguage(chosen);
-        };
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(10, 4, 10, 4),
+            Anchor = AnchorStyles.Right,
+        }, s => s.SettingsButton);
+        settings.Click += (_, _) => OpenSettings();
 
         TableLayoutPanel bar = new() { AutoSize = true, Dock = DockStyle.Fill, ColumnCount = 2, Margin = new Padding(0, 0, 0, 6) };
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.Controls.Add(buttons, 0, 0);
-        bar.Controls.Add(language, 1, 0);
+        bar.Controls.Add(settings, 1, 0);
 
         _apply.Click += (_, _) => ApplyProfile(ReadProfile());
         _restore.Click += (_, _) => RestoreNormal();
-        _admin.Click += (_, _) => RestartAsAdmin();
+        _admin.Click += (_, _) => Restart(asAdmin: true);
         return bar;
     }
 
@@ -641,7 +659,7 @@ public sealed class MainForm : Form
         if (_limiter.ActiveProfile is { } active)
         {
             _status.Text = Lang.T.StatusLimitActive(active.Name, plan);
-            _status.ForeColor = Color.FromArgb(190, 80, 10);
+            _status.ForeColor = Theme.StatusLimited;
             _tray.Icon = _iconLimited;
             Icon = _iconLimited;
             _tray.Text = Truncate(Lang.T.TrayLimitActive(active.Name, active.MaxPercent), 63);
@@ -649,7 +667,7 @@ public sealed class MainForm : Form
         else
         {
             _status.Text = Lang.T.StatusNormal(plan);
-            _status.ForeColor = Color.FromArgb(30, 120, 70);
+            _status.ForeColor = Theme.StatusNormal;
             _tray.Icon = _iconNormal;
             Icon = _iconNormal;
             _tray.Text = Lang.T.TrayNormal;
@@ -686,7 +704,7 @@ public sealed class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        // Closing the app always returns the CPU to normal (except when restarting as administrator).
+        // Closing the app always returns the CPU to normal (except when restarting).
         if (_limiter.IsActive && !_skipRestoreOnClose)
         {
             try
@@ -714,12 +732,13 @@ public sealed class MainForm : Form
         base.OnFormClosed(e);
     }
 
-    private void RestartAsAdmin()
+    /// <summary>Opens a new instance and closes this one, keeping an active limit.</summary>
+    private void Restart(bool asAdmin)
     {
         ProcessStartInfo info = new(Environment.ProcessPath!)
         {
             UseShellExecute = true,
-            Verb = "runas",
+            Verb = asAdmin ? "runas" : "",
             Arguments = "--keep",
         };
         Program.ReleaseInstance();
@@ -729,7 +748,7 @@ public sealed class MainForm : Form
         }
         catch (Win32Exception)
         {
-            // The user declined elevation: carry on as is.
+            // The user declined elevation (or the start failed): carry on as is.
             Program.AcquireInstance();
             return;
         }

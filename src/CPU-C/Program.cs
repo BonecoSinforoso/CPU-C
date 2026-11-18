@@ -18,6 +18,7 @@ internal static class Program
             return RunCli(args);
 
         ApplicationConfiguration.Initialize();
+        Theme.Apply(AppSettings.Load().ThemeChoice);
 
         // Internal use: renders the window image for the docs, without changing anything.
         if (args.Length == 2 && args[0] == "--screenshot")
