@@ -14,6 +14,7 @@
 - **Profiles** saved as JSON, with import and export.
 - **Guaranteed restore**: the original values are saved before any change. Closing the app restores the CPU, and if the app is killed, it offers to restore the next time it opens.
 - **Tray icon** to switch profiles or restore without opening the window.
+- **English and Portuguese** interface. It follows the Windows language; change it under **Language** at the bottom of the window.
 
 ## Install
 
@@ -45,11 +46,12 @@ To confirm the limit took effect, open Task Manager → Performance → CPU and 
 CPU-C.exe --apply "Weak PC"    applies a saved profile and exits (the limit stays active)
 CPU-C.exe --restore            restores the CPU to normal
 CPU-C.exe --status             shows the current state
+CPU-C.exe --lang pt            uses Portuguese for this run only (en or pt; works with the options above)
 ```
 
 ## Where data is stored
 
-`%AppData%\CPU-C\profiles.json` holds the profiles. `state.json`, in the same folder, exists only while a limit is active and holds the original power plan values.
+`%AppData%\CPU-C\profiles.json` holds the profiles. `state.json`, in the same folder, exists only while a limit is active and holds the original power plan values. `settings.json` remembers the chosen language.
 
 ## Limitations
 
@@ -80,7 +82,7 @@ Use at your own risk. The program changes Windows power settings and process aff
 
 ## Português
 
-O CPU-C (CPU Controller) enfraquece o processador temporariamente no Windows para você testar jogos e programas como se estivesse num PC fraco. Ele limita o estado do processador no plano de energia ativo, prende os programas escolhidos a poucos núcleos (P-cores e E-cores vêm identificados), vigia esses programas para quando abrirem e guarda as configurações em perfis JSON. Os valores originais são salvos antes de qualquer mudança e restaurados ao clicar em **Restore normal** ou fechar o app. A interface está em inglês.
+O CPU-C (CPU Controller) enfraquece o processador temporariamente no Windows para você testar jogos e programas como se estivesse num PC fraco. Ele limita o estado do processador no plano de energia ativo, prende os programas escolhidos a poucos núcleos (P-cores e E-cores vêm identificados), vigia esses programas para quando abrirem e guarda as configurações em perfis JSON. Os valores originais são salvos antes de qualquer mudança e restaurados ao clicar em **Restaurar normal** ou fechar o app. A interface está em português e inglês: segue o idioma do Windows e pode ser trocada em **Idioma**, no rodapé da janela.
 
 Baixe o `CPU-C.exe` em [Releases](../../releases); não é preciso instalar o .NET. O uso é por sua conta e risco.
 

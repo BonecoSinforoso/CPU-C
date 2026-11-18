@@ -1,0 +1,20 @@
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+[*.{csproj,json,yml}]
+indent_size = 2
+
+[*.cs]
+# Tipos sempre explícitos: nada de "var".
+csharp_style_var_for_built_in_types = false:warning
+csharp_style_var_when_type_is_apparent = false:warning
+csharp_style_var_elsewhere = false:warning
+dotnet_diagnostic.IDE0008.severity = warning
+
+# Com o tipo à esquerda, "new()" evita repetir o nome do tipo.
+csharp_style_implicit_object_creation_when_type_is_apparent = true:suggestion

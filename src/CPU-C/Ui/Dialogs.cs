@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CpuC.Localization;
 
 namespace CpuC.Ui;
 
@@ -8,7 +9,7 @@ internal static class Dialogs
     public static string? AskText(IWin32Window owner, string title, string label, string initial = "")
     {
         // Layout stays suspended until the end so DPI scaling applies to every control.
-        using var form = new Form();
+        using Form form = new();
         form.SuspendLayout();
         form.Text = title;
         form.Font = new Font("Segoe UI", 9F);
@@ -20,10 +21,10 @@ internal static class Dialogs
         form.AutoScaleDimensions = new SizeF(96F, 96F);
         form.AutoScaleMode = AutoScaleMode.Dpi;
         form.ClientSize = new Size(340, 110);
-        var text = new Label { Text = label, AutoSize = true, Location = new Point(12, 12) };
-        var box = new TextBox { Text = initial, Location = new Point(12, 36), Width = 316 };
-        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(172, 72), Width = 75 };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(253, 72), Width = 75 };
+        Label text = new() { Text = label, AutoSize = true, Location = new Point(12, 12) };
+        TextBox box = new() { Text = initial, Location = new Point(12, 36), Width = 316 };
+        Button ok = new() { Text = Lang.T.Ok, DialogResult = DialogResult.OK, Location = new Point(172, 72), Width = 75 };
+        Button cancel = new() { Text = Lang.T.Cancel, DialogResult = DialogResult.Cancel, Location = new Point(253, 72), Width = 75 };
         form.Controls.AddRange([text, box, ok, cancel]);
         form.AcceptButton = ok;
         form.CancelButton = cancel;
@@ -31,7 +32,7 @@ internal static class Dialogs
         form.PerformLayout();
 
         if (form.ShowDialog(owner) != DialogResult.OK) return null;
-        var value = box.Text.Trim();
+        string value = box.Text.Trim();
         return value.Length == 0 ? null : value;
     }
 
@@ -43,16 +44,16 @@ internal static class Dialogs
     /// <summary>Lists running programs (those with a window first) and returns the chosen names.</summary>
     public static List<string> PickProcesses(IWin32Window owner)
     {
-        var items = new Dictionary<string, ProcessItem>(StringComparer.OrdinalIgnoreCase);
-        foreach (var process in Process.GetProcesses())
+        Dictionary<string, ProcessItem> items = new(StringComparer.OrdinalIgnoreCase);
+        foreach (Process process in Process.GetProcesses())
         {
             using (process)
             {
                 try
                 {
                     if (process.Id <= 4) continue;
-                    var title = process.MainWindowTitle ?? "";
-                    if (!items.TryGetValue(process.ProcessName, out var existing) || (existing.Title.Length == 0 && title.Length > 0))
+                    string title = process.MainWindowTitle ?? "";
+                    if (!items.TryGetValue(process.ProcessName, out ProcessItem? existing) || (existing.Title.Length == 0 && title.Length > 0))
                         items[process.ProcessName] = new ProcessItem(process.ProcessName, title);
                 }
                 catch
@@ -61,14 +62,14 @@ internal static class Dialogs
                 }
             }
         }
-        var all = items.Values
+        List<ProcessItem> all = items.Values
             .OrderBy(i => i.Title.Length == 0)
             .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        using var form = new Form();
+        using Form form = new();
         form.SuspendLayout();
-        form.Text = "Running programs";
+        form.Text = Lang.T.RunningProgramsTitle;
         form.Font = new Font("Segoe UI", 9F);
         form.StartPosition = FormStartPosition.CenterParent;
         form.MinimizeBox = false;
@@ -80,30 +81,30 @@ internal static class Dialogs
         form.MinimumSize = new Size(360, 300);
         form.Padding = new Padding(10);
 
-        var filter = new TextBox { Dock = DockStyle.Top, PlaceholderText = "Filter…" };
-        var list = new ListBox
+        TextBox filter = new() { Dock = DockStyle.Top, PlaceholderText = Lang.T.FilterPlaceholder };
+        ListBox list = new()
         {
             Dock = DockStyle.Fill,
             SelectionMode = SelectionMode.MultiExtended,
             IntegralHeight = false,
         };
-        var buttons = new FlowLayoutPanel
+        FlowLayoutPanel buttons = new()
         {
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
             AutoSize = true,
             Padding = new Padding(0, 8, 0, 0),
         };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
-        var ok = new Button { Text = "Add", DialogResult = DialogResult.OK, AutoSize = true };
+        Button cancel = new() { Text = Lang.T.Cancel, DialogResult = DialogResult.Cancel, AutoSize = true };
+        Button ok = new() { Text = Lang.T.Add, DialogResult = DialogResult.OK, AutoSize = true };
         buttons.Controls.AddRange([cancel, ok]);
 
         void Refill()
         {
             list.BeginUpdate();
             list.Items.Clear();
-            var term = filter.Text.Trim();
-            foreach (var item in all)
+            string term = filter.Text.Trim();
+            foreach (ProcessItem item in all)
                 if (term.Length == 0 || item.ToString().Contains(term, StringComparison.OrdinalIgnoreCase))
                     list.Items.Add(item);
             list.EndUpdate();

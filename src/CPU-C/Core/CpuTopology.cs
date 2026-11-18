@@ -32,7 +32,7 @@ public sealed class CpuTopology
     public static long MaskOf(IEnumerable<int> indexes)
     {
         long mask = 0;
-        foreach (var i in indexes)
+        foreach (int i in indexes)
             if (i is >= 0 and < 64) mask |= 1L << i;
         return mask;
     }
@@ -48,7 +48,7 @@ public sealed class CpuTopology
     {
         try
         {
-            var cpus = ReadFromWindows();
+            List<LogicalCpu> cpus = ReadFromWindows();
             if (cpus.Count > 0) return new CpuTopology(cpus);
         }
         catch
@@ -66,14 +66,14 @@ public sealed class CpuTopology
         GetLogicalProcessorInformationEx(relationProcessorCore, IntPtr.Zero, ref length);
         if (length == 0) return [];
 
-        var buffer = Marshal.AllocHGlobal((int)length);
+        IntPtr buffer = Marshal.AllocHGlobal((int)length);
         try
         {
             if (!GetLogicalProcessorInformationEx(relationProcessorCore, buffer, ref length)) return [];
 
             // SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX: Relationship(4) Size(4) followed by
             // PROCESSOR_RELATIONSHIP: Flags(1) EfficiencyClass(1) Reserved(20) GroupCount(2) GroupMask[]
-            var cores = new List<(byte Efficiency, long Mask)>();
+            List<(byte Efficiency, long Mask)> cores = new();
             int offset = 0;
             while (offset < length)
             {
@@ -91,11 +91,11 @@ public sealed class CpuTopology
             byte top = cores.Count > 0 ? cores.Max(c => c.Efficiency) : (byte)0;
             bool hybrid = cores.Any(c => c.Efficiency != top);
 
-            var cpus = new List<LogicalCpu>();
+            List<LogicalCpu> cpus = new();
             int physical = 0;
-            foreach (var core in cores.OrderBy(c => LowestBit(c.Mask)))
+            foreach ((byte Efficiency, long Mask) core in cores.OrderBy(c => LowestBit(c.Mask)))
             {
-                var kind = !hybrid ? CoreKind.Normal
+                CoreKind kind = !hybrid ? CoreKind.Normal
                     : core.Efficiency == top ? CoreKind.Performance
                     : CoreKind.Efficiency;
                 for (int i = 0; i < 64; i++)

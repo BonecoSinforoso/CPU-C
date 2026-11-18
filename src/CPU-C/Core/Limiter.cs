@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
+using CpuC.Localization;
 
 namespace CpuC.Core;
 
@@ -35,7 +36,7 @@ public sealed class Limiter
         profile.Normalize();
 
         // If a limit was already active, the original values are still the ones from the first time.
-        var original = _state?.Original ?? PowerPlan.Capture();
+        PowerSnapshot original = _state?.Original ?? PowerPlan.Capture();
         if (_state is not null) ReleaseAffinity(_state.Profile.Processes);
 
         // Saved before touching anything: if the app dies halfway, it can still restore.
@@ -43,33 +44,33 @@ public sealed class Limiter
         File.WriteAllText(AppPaths.StateFile, JsonSerializer.Serialize(_state, AppPaths.Json));
 
         PowerPlan.SetThrottle(profile.MinPercent, profile.MaxPercent);
-        Log?.Invoke($"CPU limited: minimum {profile.MinPercent}%, maximum {profile.MaxPercent}%.");
+        Log?.Invoke(Lang.T.CpuLimited(profile.MinPercent, profile.MaxPercent));
 
         _failedPids.Clear();
         long mask = _topology.MaskFor(profile.Cores);
         if (mask == 0)
         {
-            Log?.Invoke("Cores: no restriction.");
+            Log?.Invoke(Lang.T.CoresNoRestriction);
         }
         else if (profile.Processes.Count == 0)
         {
-            Log?.Invoke("Cores: no programs in the list, nothing to pin.");
+            Log?.Invoke(Lang.T.CoresNoPrograms);
         }
         else
         {
             int found = ApplyAffinity();
-            if (found == 0) Log?.Invoke("None of the listed programs is running. Cores will be pinned when they start.");
+            if (found == 0) Log?.Invoke(Lang.T.NoListedProgramRunning);
         }
     }
 
     public void Restore()
     {
         if (_state is null) return;
-        var state = _state;
+        ActiveState state = _state;
 
         PowerPlan.Restore(state.Original);
-        var (min, max) = PowerPlan.Current();
-        Log?.Invoke($"CPU restored: minimum {min}%, maximum {max}%.");
+        (int min, int max) = PowerPlan.Current();
+        Log?.Invoke(Lang.T.CpuRestored(min, max));
 
         ReleaseAffinity(state.Profile.Processes);
         _state = null;
@@ -88,20 +89,20 @@ public sealed class Limiter
         if (_state is null) return 0;
         long mask = _topology.MaskFor(_state.Profile.Cores);
         if (mask == 0) return 0;
-        return SetAffinity(_state.Profile.Processes, mask, "cores pinned");
+        return SetAffinity(_state.Profile.Processes, mask, Lang.T.CoresPinned);
     }
 
     private void ReleaseAffinity(IEnumerable<string> processes)
     {
-        SetAffinity(processes, _topology.AllMask, "cores released");
+        SetAffinity(processes, _topology.AllMask, Lang.T.CoresReleased);
     }
 
-    private int SetAffinity(IEnumerable<string> processes, long mask, string what)
+    private int SetAffinity(IEnumerable<string> processes, long mask, Func<string, int, string> describe)
     {
         int found = 0;
-        foreach (var name in processes)
+        foreach (string name in processes)
         {
-            foreach (var process in Process.GetProcessesByName(name))
+            foreach (Process process in Process.GetProcessesByName(name))
             {
                 using (process)
                 {
@@ -111,13 +112,13 @@ public sealed class Limiter
                         if ((long)process.ProcessorAffinity == mask) continue;
                         process.ProcessorAffinity = (IntPtr)mask;
                         _failedPids.Remove(process.Id);
-                        Log?.Invoke($"{process.ProcessName} (PID {process.Id}): {what}.");
+                        Log?.Invoke(describe(process.ProcessName, process.Id));
                     }
                     catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or NotSupportedException)
                     {
                         // The process already exited, or belongs to another user / runs elevated.
                         if (process.HasExitedSafe() || !_failedPids.Add(process.Id)) continue;
-                        Log?.Invoke($"{name} (PID {process.Id}): failed ({ex.Message.Trim()}). Try running CPU-C as administrator.");
+                        Log?.Invoke(Lang.T.AffinityFailed(name, process.Id, ex.Message.Trim()));
                     }
                 }
             }
@@ -130,7 +131,7 @@ public sealed class Limiter
         try
         {
             if (!File.Exists(AppPaths.StateFile)) return null;
-            var state = JsonSerializer.Deserialize<ActiveState>(File.ReadAllText(AppPaths.StateFile), AppPaths.Json);
+            ActiveState? state = JsonSerializer.Deserialize<ActiveState>(File.ReadAllText(AppPaths.StateFile), AppPaths.Json);
             return state is { Original.Values.Count: > 0 } ? state : null;
         }
         catch

@@ -1,0 +1,125 @@
+namespace CpuC.Localization;
+
+public sealed partial class Strings
+{
+    public static readonly Strings English = new()
+    {
+        Code = "en",
+        NativeName = "English",
+
+        NewProfileName = "New profile",
+        FallbackProfileName = "Profile",
+        UnnamedProfile = "Unnamed",
+        DefaultWeakPc = "Weak PC",
+        DefaultVeryWeakPc = "Very weak PC",
+        EmptyProfileFile = "Empty profile file.",
+
+        CpuLimited = (min, max) => $"CPU limited: minimum {min}%, maximum {max}%.",
+        CpuRestored = (min, max) => $"CPU restored: minimum {min}%, maximum {max}%.",
+        CoresNoRestriction = "Cores: no restriction.",
+        CoresNoPrograms = "Cores: no programs in the list, nothing to pin.",
+        NoListedProgramRunning = "None of the listed programs is running. Cores will be pinned when they start.",
+        CoresPinned = (name, pid) => $"{name} (PID {pid}): cores pinned.",
+        CoresReleased = (name, pid) => $"{name} (PID {pid}): cores released.",
+        AffinityFailed = (name, pid, reason) => $"{name} (PID {pid}): failed ({reason}). Try running CPU-C as administrator.",
+
+        ActionReadPlan = "read the active power plan",
+        ActionChangePlan = "change the power plan",
+        ActionRestorePlan = "restore the power plan",
+        ActionActivatePlan = "activate the power plan",
+        CouldNot = (action, reason, code) => $"Could not {action}: {reason} (code {code}).",
+        NoProcessorSettings = "This power plan does not expose the processor state settings.",
+        PowerPlanNow = (min, max) => $"Power plan now: minimum {min}%, maximum {max}%.",
+
+        AlreadyRunning = "CPU-C is already running. Look for its icon in the system tray.",
+        CliGiveProfileName = "Give the profile name: CPU-C.exe --apply \"Weak PC\"",
+        CliProfileNotFound = (name, profiles) => $"Profile \"{name}\" not found. Profiles: {profiles}",
+        CliLimitStaysActive = "The limit stays active until you run: CPU-C.exe --restore",
+        CliNoActiveLimit = "No active limit.",
+        CliLimitActive = name => $"Limit active: profile \"{name}\".",
+        CliLogicalCpus = (count, kinds) => $"Logical CPUs: {count}{kinds}.",
+        CliUsage = "Usage: CPU-C.exe [--apply \"profile\" | --restore | --status] [--lang en|pt]\nWith no arguments, opens the window.",
+        CliError = message => "Error: " + message,
+
+        Ok = "OK",
+        Cancel = "Cancel",
+        Add = "Add",
+
+        RunningProgramsTitle = "Running programs",
+        FilterPlaceholder = "Filter…",
+
+        WindowTitle = "CPU-C — CPU Controller",
+        LanguageLabel = "Language:",
+        ProfileLabel = "Profile:",
+        New = "New",
+        Save = "Save",
+        Delete = "Delete",
+        Import = "Import",
+        Export = "Export",
+
+        SpeedGroup = "CPU speed (processor state)",
+        Maximum = "Maximum",
+        Minimum = "Minimum",
+        LowLimitWarning = limit => $"Warning: at {limit}% or below, all of Windows may become very slow.",
+
+        CoresGroup = "Allowed cores",
+        CoreKindFast = "fast core (P-core)",
+        CoreKindSlow = "slow core (E-core)",
+        CoreKindNormal = "core",
+        CoreTooltip = (index, kind, physical) => $"CPU {index}: {kind}, physical core {physical}",
+        AllCores = "All",
+        OnlyPCores = "P-cores only",
+        OnlyECores = "E-cores only",
+        NoCores = "None",
+        CoresHint = "Applies only to the programs listed below. With all (or none) checked, cores are not restricted.",
+
+        ProgramsGroup = "Programs pinned to the allowed cores",
+        AddRunning = "Add running…",
+        AddExe = "Add .exe…",
+        TypeName = "Type name…",
+        Remove = "Remove",
+
+        ApplyLimit = "Apply limit",
+        ReapplyLimit = "Reapply limit",
+        RestoreNormal = "Restore normal",
+        RestartAsAdmin = "Restart as administrator",
+
+        StatusLimitActive = (name, plan) => $"LIMIT ACTIVE — profile \"{name}\". {plan}",
+        StatusNormal = plan => $"Normal, no limit. {plan}",
+        PowerPlanReadFailed = message => "Could not read the power plan: " + message,
+
+        TrayOpen = "Open CPU-C",
+        TrayApply = name => $"Apply: {name}",
+        TrayExit = "Exit",
+        TrayLimitActive = (name, max) => $"CPU-C: limit active ({name}, max {max}%)",
+        TrayNormal = "CPU-C: normal",
+
+        NewProfileTitle = "New profile",
+        NewProfilePrompt = "Profile name (copies the values currently on screen):",
+        ProfileCreated = name => $"Profile \"{name}\" created.",
+        ProfileSaved = name => $"Profile \"{name}\" saved.",
+        DeleteProfileQuestion = name => $"Delete profile \"{name}\"?",
+        ProfileDeleted = name => $"Profile \"{name}\" deleted.",
+        ProfilesFilterWithAll = "CPU-C profiles (*.json)|*.json|All files|*.*",
+        ProfilesFilter = "CPU-C profiles (*.json)|*.json",
+        ImportTitle = "Import profiles",
+        ImportEmpty = "The file contained no profiles.",
+        Imported = names => $"Imported: {names}.",
+        ImportFailed = "Could not import the file.",
+        ExportTitle = "Export profile",
+        Exported = file => $"Profile exported to {file}.",
+        ExportFailed = "Could not export the profile.",
+        SaveProfilesFailed = "Could not save the profiles.",
+
+        ExeFilter = "Programs (*.exe)|*.exe",
+        ChooseProgramTitle = "Choose program",
+        AddProgramTitle = "Add program",
+        AddProgramPrompt = "Process name (e.g. pythonw or game.exe):",
+
+        ApplyFailed = "Could not apply the limit.",
+        RestoreFailed = "Could not restore the CPU.",
+        RestoreFailedStillActive = "Could not restore the CPU. The limit is still active.",
+        WatchError = message => "Error while watching programs: " + message,
+        LeftoverQuestion = name => $"A CPU limit was left active last time (profile \"{name}\").\n\nRestore the CPU to normal now?",
+    };
+}

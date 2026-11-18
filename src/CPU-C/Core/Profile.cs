@@ -1,12 +1,13 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using CpuC.Localization;
 
 namespace CpuC.Core;
 
 /// <summary>A limit profile: CPU speed, allowed cores and the programs affected.</summary>
 public sealed class Profile
 {
-    public string Name { get; set; } = "New profile";
+    public string Name { get; set; } = Lang.T.NewProfileName;
     public int MinPercent { get; set; } = 5;
     public int MaxPercent { get; set; } = 50;
 
@@ -28,7 +29,7 @@ public sealed class Profile
     /// <summary>Fixes out-of-range values and keeps the minimum at or below the maximum.</summary>
     public void Normalize()
     {
-        Name = string.IsNullOrWhiteSpace(Name) ? "Profile" : Name.Trim();
+        Name = string.IsNullOrWhiteSpace(Name) ? Lang.T.FallbackProfileName : Name.Trim();
         MaxPercent = Math.Clamp(MaxPercent, 1, 100);
         MinPercent = Math.Clamp(MinPercent, 0, MaxPercent);
         Cores = Cores.Where(c => c is >= 0 and < 64).Distinct().Order().ToList();
@@ -51,7 +52,7 @@ public static class AppPaths
     {
         get
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CPU-C");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CPU-C");
             Directory.CreateDirectory(dir);
             return dir;
         }
@@ -59,6 +60,7 @@ public static class AppPaths
 
     public static string ProfilesFile => Path.Combine(DataDir, "profiles.json");
     public static string StateFile => Path.Combine(DataDir, "state.json");
+    public static string SettingsFile => Path.Combine(DataDir, "settings.json");
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -76,7 +78,7 @@ public sealed class ProfileStore
 
     public static ProfileStore Load(CpuTopology topology)
     {
-        var store = new ProfileStore();
+        ProfileStore store = new();
         try
         {
             if (File.Exists(AppPaths.ProfilesFile))
@@ -106,11 +108,11 @@ public sealed class ProfileStore
 
     public string UniqueName(string wanted)
     {
-        wanted = string.IsNullOrWhiteSpace(wanted) ? "Profile" : wanted.Trim();
+        wanted = string.IsNullOrWhiteSpace(wanted) ? Lang.T.FallbackProfileName : wanted.Trim();
         if (Find(wanted) is null) return wanted;
         for (int i = 2; ; i++)
         {
-            var candidate = $"{wanted} ({i})";
+            string candidate = $"{wanted} ({i})";
             if (Find(candidate) is null) return candidate;
         }
     }
@@ -118,8 +120,8 @@ public sealed class ProfileStore
     /// <summary>Imports a file holding one profile or a list of profiles. Returns the profiles added.</summary>
     public List<Profile> Import(string file)
     {
-        var imported = ReadFile(file);
-        foreach (var profile in imported)
+        List<Profile> imported = ReadFile(file);
+        foreach (Profile profile in imported)
         {
             profile.Name = UniqueName(profile.Name);
             Profiles.Add(profile);
@@ -135,32 +137,32 @@ public sealed class ProfileStore
 
     private static List<Profile> ReadFile(string file)
     {
-        using var doc = JsonDocument.Parse(File.ReadAllText(file), new JsonDocumentOptions
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file), new JsonDocumentOptions
         {
             CommentHandling = JsonCommentHandling.Skip,
             AllowTrailingCommas = true,
         });
 
-        var list = doc.RootElement.ValueKind == JsonValueKind.Array
+        List<Profile> list = doc.RootElement.ValueKind == JsonValueKind.Array
             ? doc.RootElement.Deserialize<List<Profile>>(AppPaths.Json) ?? []
-            : [doc.RootElement.Deserialize<Profile>(AppPaths.Json) ?? throw new InvalidDataException("Empty profile file.")];
+            : [doc.RootElement.Deserialize<Profile>(AppPaths.Json) ?? throw new InvalidDataException(Lang.T.EmptyProfileFile)];
 
         list.RemoveAll(p => p is null);
-        foreach (var profile in list) profile.Normalize();
+        foreach (Profile profile in list) profile.Normalize();
         return list;
     }
 
     private static List<Profile> Defaults(CpuTopology topology)
     {
         // On hybrid CPUs the default profiles use the slow cores (E-cores).
-        var pool = topology.IsHybrid
+        List<int> pool = topology.IsHybrid
             ? topology.Cpus.Where(c => c.Kind == CoreKind.Efficiency).Select(c => c.Index).ToList()
             : topology.Cpus.Select(c => c.Index).ToList();
 
         return
         [
-            new Profile { Name = "Weak PC", MinPercent = 5, MaxPercent = 40, Cores = pool.Take(4).ToList() },
-            new Profile { Name = "Very weak PC", MinPercent = 5, MaxPercent = 20, Cores = pool.Take(2).ToList() },
+            new Profile { Name = Lang.T.DefaultWeakPc, MinPercent = 5, MaxPercent = 40, Cores = pool.Take(4).ToList() },
+            new Profile { Name = Lang.T.DefaultVeryWeakPc, MinPercent = 5, MaxPercent = 20, Cores = pool.Take(2).ToList() },
         ];
     }
 }

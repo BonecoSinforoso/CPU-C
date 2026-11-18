@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using CpuC.Core;
+using CpuC.Localization;
 
 namespace CpuC.Ui;
 
@@ -18,6 +19,7 @@ public sealed class MainForm : Form
     private readonly bool _askAboutLeftover;
 
     private readonly ComboBox _profiles = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 170 };
+    private readonly ComboBox _language = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
     private readonly TrackBar _maxBar = NewBar(1);
     private readonly TrackBar _minBar = NewBar(0);
     private readonly NumericUpDown _maxBox = NewPercentBox(1);
@@ -26,15 +28,14 @@ public sealed class MainForm : Form
     {
         AutoSize = true,
         ForeColor = Color.FromArgb(176, 92, 0),
-        Text = $"Warning: at {LowLimitWarning}% or below, all of Windows may become very slow.",
         Visible = false,
     };
     private readonly List<CheckBox> _coreBoxes = [];
     private readonly ListBox _processes = new() { Dock = DockStyle.Fill, IntegralHeight = false, SelectionMode = SelectionMode.MultiExtended };
     private readonly Label _status = new() { AutoSize = true, Margin = new Padding(3, 8, 3, 4) };
-    private readonly Button _apply = new() { Text = "Apply limit", AutoSize = true, Padding = new Padding(8, 2, 8, 2) };
-    private readonly Button _restore = new() { Text = "Restore normal", AutoSize = true, Padding = new Padding(8, 2, 8, 2) };
-    private readonly Button _admin = new() { Text = "Restart as administrator", AutoSize = true, Padding = new Padding(4, 2, 4, 2) };
+    private readonly Button _apply = new() { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10, 4, 10, 4) };
+    private readonly Button _restore = new() { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10, 4, 10, 4) };
+    private readonly Button _admin = new() { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10, 4, 10, 4) };
     private readonly TextBox _log = new()
     {
         Multiline = true,
@@ -43,12 +44,16 @@ public sealed class MainForm : Form
         Dock = DockStyle.Fill,
         BackColor = SystemColors.Window,
     };
+    private readonly ToolTip _tips = new();
 
     private readonly NotifyIcon _tray = new();
     private readonly ContextMenuStrip _trayMenu = new();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1500 };
     private readonly Icon _iconNormal = MakeIcon(Color.FromArgb(46, 139, 87));
     private readonly Icon _iconLimited = MakeIcon(Color.FromArgb(214, 96, 20));
+
+    /// <summary>Puts the current language's text on each control; rerun when the language changes.</summary>
+    private readonly List<Action> _textUpdaters = [];
 
     private bool _loading;
     private bool _skipRestoreOnClose;
@@ -63,7 +68,6 @@ public sealed class MainForm : Form
         // Everything is built with layout suspended so Windows DPI scaling
         // (125%, 150%...) is applied exactly once, with every control already in the window.
         SuspendLayout();
-        Text = "CPU-C — CPU Controller";
         Font = new Font("Segoe UI", 9F);
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -73,6 +77,10 @@ public sealed class MainForm : Form
         _status.Font = new Font(Font, FontStyle.Bold);
         _apply.Font = new Font(Font, FontStyle.Bold);
 
+        Localize(() => Text = Lang.T.WindowTitle);
+        Localize(_warning, s => s.LowLimitWarning(LowLimitWarning));
+        Localize(_restore, s => s.RestoreNormal);
+        Localize(_admin, s => s.RestartAsAdmin);
         BuildLayout();
         BuildTray();
         ResumeLayout(false);
@@ -86,11 +94,36 @@ public sealed class MainForm : Form
         UpdateStatus();
     }
 
+    // ---------- Language ----------
+
+    /// <summary>Runs <paramref name="update"/> now and again on every language change.</summary>
+    private void Localize(Action update)
+    {
+        _textUpdaters.Add(update);
+        update();
+    }
+
+    private T Localize<T>(T control, Func<Strings, string> text) where T : Control
+    {
+        Localize(() => control.Text = text(Lang.T));
+        return control;
+    }
+
+    private void ChangeLanguage(Strings language)
+    {
+        if (language == Lang.T) return;
+        Lang.Set(language, save: true);
+        SuspendLayout();
+        foreach (Action update in _textUpdaters) update();
+        UpdateStatus();
+        ResumeLayout(true);
+    }
+
     // ---------- Building the window ----------
 
     private void BuildLayout()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(10) };
+        TableLayoutPanel root = new() { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(10) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // profiles
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // speed
@@ -112,14 +145,14 @@ public sealed class MainForm : Form
 
     private Control BuildProfileBar()
     {
-        var bar = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0, 0, 0, 6) };
-        bar.Controls.Add(new Label { Text = "Profile:", AutoSize = true, Margin = new Padding(3, 8, 3, 0) });
+        FlowLayoutPanel bar = new() { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0, 0, 0, 6) };
+        bar.Controls.Add(Localize(new Label { AutoSize = true, Margin = new Padding(3, 8, 3, 0) }, s => s.ProfileLabel));
         bar.Controls.Add(_profiles);
-        bar.Controls.Add(SmallButton("New", (_, _) => NewProfile()));
-        bar.Controls.Add(SmallButton("Save", (_, _) => SaveProfile()));
-        bar.Controls.Add(SmallButton("Delete", (_, _) => DeleteProfile()));
-        bar.Controls.Add(SmallButton("Import", (_, _) => ImportProfiles()));
-        bar.Controls.Add(SmallButton("Export", (_, _) => ExportProfile()));
+        bar.Controls.Add(SmallButton(s => s.New, (_, _) => NewProfile()));
+        bar.Controls.Add(SmallButton(s => s.Save, (_, _) => SaveProfile()));
+        bar.Controls.Add(SmallButton(s => s.Delete, (_, _) => DeleteProfile()));
+        bar.Controls.Add(SmallButton(s => s.Import, (_, _) => ImportProfiles()));
+        bar.Controls.Add(SmallButton(s => s.Export, (_, _) => ExportProfile()));
 
         _profiles.SelectedIndexChanged += (_, _) =>
         {
@@ -131,14 +164,14 @@ public sealed class MainForm : Form
 
     private Control BuildSpeedGroup()
     {
-        var table = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, ColumnCount = 4 };
+        TableLayoutPanel table = new() { AutoSize = true, Dock = DockStyle.Fill, ColumnCount = 4 };
         table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        AddSpeedRow(table, 0, "Maximum", _maxBar, _maxBox);
-        AddSpeedRow(table, 1, "Minimum", _minBar, _minBox);
+        AddSpeedRow(table, 0, s => s.Maximum, _maxBar, _maxBox);
+        AddSpeedRow(table, 1, s => s.Minimum, _minBar, _minBox);
         table.Controls.Add(_warning, 0, 2);
         table.SetColumnSpan(_warning, 4);
 
@@ -147,12 +180,12 @@ public sealed class MainForm : Form
         _minBar.ValueChanged += (_, _) => SetSpeed(max: null, min: _minBar.Value);
         _minBox.ValueChanged += (_, _) => SetSpeed(max: null, min: (int)_minBox.Value);
 
-        return Group("CPU speed (processor state)", table);
+        return Group(s => s.SpeedGroup, table);
     }
 
-    private static void AddSpeedRow(TableLayoutPanel table, int row, string text, TrackBar bar, NumericUpDown box)
+    private void AddSpeedRow(TableLayoutPanel table, int row, Func<Strings, string> text, TrackBar bar, NumericUpDown box)
     {
-        table.Controls.Add(new Label { Text = text, AutoSize = true, Margin = new Padding(3, 8, 8, 0) }, 0, row);
+        table.Controls.Add(Localize(new Label { AutoSize = true, Margin = new Padding(3, 8, 8, 0) }, text), 0, row);
         table.Controls.Add(bar, 1, row);
         table.Controls.Add(box, 2, row);
         table.Controls.Add(new Label { Text = "%", AutoSize = true, Margin = new Padding(0, 8, 3, 0) }, 3, row);
@@ -161,82 +194,99 @@ public sealed class MainForm : Form
     private Control BuildCoresGroup()
     {
         const int columns = 10;
-        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = columns, Margin = new Padding(0) };
+        TableLayoutPanel grid = new() { AutoSize = true, ColumnCount = columns, Margin = new Padding(0) };
         for (int i = 0; i < columns; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        var tips = new ToolTip();
-        foreach (var cpu in _topology.Cpus)
+        foreach (LogicalCpu cpu in _topology.Cpus)
         {
-            var box = new CheckBox
+            CheckBox box = new()
             {
                 Text = cpu.KindLabel.Length == 0 ? cpu.Index.ToString() : $"{cpu.Index} {cpu.KindLabel}",
                 AutoSize = true,
                 Tag = cpu,
                 Margin = new Padding(3, 2, 8, 2),
             };
-            var kind = cpu.Kind switch
+            Localize(() =>
             {
-                CoreKind.Performance => "fast core (P-core)",
-                CoreKind.Efficiency => "slow core (E-core)",
-                _ => "core",
-            };
-            tips.SetToolTip(box, $"CPU {cpu.Index}: {kind}, physical core {cpu.PhysicalCore}");
+                string kind = cpu.Kind switch
+                {
+                    CoreKind.Performance => Lang.T.CoreKindFast,
+                    CoreKind.Efficiency => Lang.T.CoreKindSlow,
+                    _ => Lang.T.CoreKindNormal,
+                };
+                _tips.SetToolTip(box, Lang.T.CoreTooltip(cpu.Index, kind, cpu.PhysicalCore));
+            });
             _coreBoxes.Add(box);
             grid.Controls.Add(box);
         }
 
-        var shortcuts = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 0) };
-        shortcuts.Controls.Add(SmallButton("All", (_, _) => CheckCores(_ => true)));
+        FlowLayoutPanel shortcuts = new() { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 0) };
+        shortcuts.Controls.Add(SmallButton(s => s.AllCores, (_, _) => CheckCores(_ => true)));
         if (_topology.IsHybrid)
         {
-            shortcuts.Controls.Add(SmallButton("P-cores only", (_, _) => CheckCores(c => c.Kind == CoreKind.Performance)));
-            shortcuts.Controls.Add(SmallButton("E-cores only", (_, _) => CheckCores(c => c.Kind == CoreKind.Efficiency)));
+            shortcuts.Controls.Add(SmallButton(s => s.OnlyPCores, (_, _) => CheckCores(c => c.Kind == CoreKind.Performance)));
+            shortcuts.Controls.Add(SmallButton(s => s.OnlyECores, (_, _) => CheckCores(c => c.Kind == CoreKind.Efficiency)));
         }
-        shortcuts.Controls.Add(SmallButton("None", (_, _) => CheckCores(_ => false)));
+        shortcuts.Controls.Add(SmallButton(s => s.NoCores, (_, _) => CheckCores(_ => false)));
 
-        var hint = new Label
+        Label hint = Localize(new Label
         {
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
             Margin = new Padding(3, 4, 3, 0),
-            Text = "Applies only to the programs listed below. With all (or none) checked, cores are not restricted.",
             MaximumSize = new Size(570, 0),
-        };
+        }, s => s.CoresHint);
 
-        var stack = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        FlowLayoutPanel stack = new() { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         stack.Controls.Add(grid);
         stack.Controls.Add(shortcuts);
         stack.Controls.Add(hint);
-        return Group("Allowed cores", stack);
+        return Group(s => s.CoresGroup, stack);
     }
 
     private Control BuildProcessGroup()
     {
-        var table = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        TableLayoutPanel table = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         table.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-        buttons.Controls.Add(WideButton("Add running…", (_, _) => AddRunningProcesses()));
-        buttons.Controls.Add(WideButton("Add .exe…", (_, _) => AddExecutable()));
-        buttons.Controls.Add(WideButton("Type name…", (_, _) => AddTypedProcess()));
-        buttons.Controls.Add(WideButton("Remove", (_, _) => RemoveProcesses()));
+        FlowLayoutPanel buttons = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        buttons.Controls.Add(WideButton(s => s.AddRunning, (_, _) => AddRunningProcesses()));
+        buttons.Controls.Add(WideButton(s => s.AddExe, (_, _) => AddExecutable()));
+        buttons.Controls.Add(WideButton(s => s.TypeName, (_, _) => AddTypedProcess()));
+        buttons.Controls.Add(WideButton(s => s.Remove, (_, _) => RemoveProcesses()));
 
         table.Controls.Add(_processes, 0, 0);
         table.Controls.Add(buttons, 1, 0);
 
-        var group = new GroupBox { Text = "Programs pinned to the allowed cores", Dock = DockStyle.Fill, Padding = new Padding(8, 4, 8, 8) };
+        GroupBox group = Localize(new GroupBox { Dock = DockStyle.Fill, Padding = new Padding(8, 4, 8, 8) }, s => s.ProgramsGroup);
         group.Controls.Add(table);
         return group;
     }
 
     private Control BuildActionBar()
     {
-        var bar = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0, 0, 0, 6) };
-        bar.Controls.Add(_apply);
-        bar.Controls.Add(_restore);
-        if (!IsElevated()) bar.Controls.Add(_admin);
+        FlowLayoutPanel buttons = new() { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        buttons.Controls.Add(_apply);
+        buttons.Controls.Add(_restore);
+        if (!IsElevated()) buttons.Controls.Add(_admin);
+
+        FlowLayoutPanel language = new() { AutoSize = true, WrapContents = false, Anchor = AnchorStyles.Right, Margin = new Padding(0) };
+        language.Controls.Add(Localize(new Label { AutoSize = true, Margin = new Padding(3, 7, 0, 0) }, s => s.LanguageLabel));
+        language.Controls.Add(_language);
+        foreach (Strings option in Lang.All) _language.Items.Add(option);
+        _language.SelectedItem = Lang.T;
+        _language.SelectedIndexChanged += (_, _) =>
+        {
+            if (_language.SelectedItem is Strings chosen) ChangeLanguage(chosen);
+        };
+
+        TableLayoutPanel bar = new() { AutoSize = true, Dock = DockStyle.Fill, ColumnCount = 2, Margin = new Padding(0, 0, 0, 6) };
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        bar.Controls.Add(buttons, 0, 0);
+        bar.Controls.Add(language, 1, 0);
 
         _apply.Click += (_, _) => ApplyProfile(ReadProfile());
         _restore.Click += (_, _) => RestoreNormal();
@@ -252,14 +302,15 @@ public sealed class MainForm : Form
         _tray.ContextMenuStrip = _trayMenu;
         _tray.DoubleClick += (_, _) => ShowWindow();
 
+        // Rebuilt on every opening, so it always has the current profiles and language.
         _trayMenu.Opening += (_, _) =>
         {
             _trayMenu.Items.Clear();
-            _trayMenu.Items.Add("Open CPU-C", null, (_, _) => ShowWindow());
+            _trayMenu.Items.Add(Lang.T.TrayOpen, null, (_, _) => ShowWindow());
             _trayMenu.Items.Add(new ToolStripSeparator());
-            foreach (var profile in _store.Profiles)
+            foreach (Profile profile in _store.Profiles)
             {
-                var item = new ToolStripMenuItem($"Apply: {profile.Name}")
+                ToolStripMenuItem item = new(Lang.T.TrayApply(profile.Name))
                 {
                     Checked = _limiter.IsActive && string.Equals(_limiter.ActiveProfile!.Name, profile.Name, StringComparison.OrdinalIgnoreCase),
                 };
@@ -270,36 +321,35 @@ public sealed class MainForm : Form
                 };
                 _trayMenu.Items.Add(item);
             }
-            _trayMenu.Items.Add(new ToolStripMenuItem("Restore normal", null, (_, _) => RestoreNormal()) { Enabled = _limiter.IsActive });
+            _trayMenu.Items.Add(new ToolStripMenuItem(Lang.T.RestoreNormal, null, (_, _) => RestoreNormal()) { Enabled = _limiter.IsActive });
             _trayMenu.Items.Add(new ToolStripSeparator());
-            _trayMenu.Items.Add("Exit", null, (_, _) => Close());
+            _trayMenu.Items.Add(Lang.T.TrayExit, null, (_, _) => Close());
         };
     }
 
-    private static GroupBox Group(string title, Control content)
+    private GroupBox Group(Func<Strings, string> title, Control content)
     {
-        var group = new GroupBox
+        GroupBox group = Localize(new GroupBox
         {
-            Text = title,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
             Padding = new Padding(8, 4, 8, 8),
-        };
+        }, title);
         group.Controls.Add(content);
         return group;
     }
 
-    private static Button SmallButton(string text, EventHandler onClick)
+    private Button SmallButton(Func<Strings, string> text, EventHandler onClick)
     {
-        var button = new Button { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 1, 4, 1) };
+        Button button = Localize(new Button { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 1, 4, 1) }, text);
         button.Click += onClick;
         return button;
     }
 
-    private static Button WideButton(string text, EventHandler onClick)
+    private Button WideButton(Func<Strings, string> text, EventHandler onClick)
     {
-        var button = new Button { Text = text, Width = 140, Height = 28 };
+        Button button = Localize(new Button { Width = 140, Height = 28 }, text);
         button.Click += onClick;
         return button;
     }
@@ -347,7 +397,7 @@ public sealed class MainForm : Form
 
     private void CheckCores(Func<LogicalCpu, bool> predicate)
     {
-        foreach (var box in _coreBoxes) box.Checked = predicate((LogicalCpu)box.Tag!);
+        foreach (CheckBox box in _coreBoxes) box.Checked = predicate((LogicalCpu)box.Tag!);
     }
 
     private void ShowProfile(Profile profile)
@@ -365,11 +415,11 @@ public sealed class MainForm : Form
 
             // An empty list in the profile means "no restriction": show everything checked.
             bool all = profile.Cores.Count == 0;
-            foreach (var box in _coreBoxes)
+            foreach (CheckBox box in _coreBoxes)
                 box.Checked = all || profile.Cores.Contains(((LogicalCpu)box.Tag!).Index);
 
             _processes.Items.Clear();
-            foreach (var name in profile.Processes) _processes.Items.Add(name);
+            foreach (string name in profile.Processes) _processes.Items.Add(name);
         }
         finally
         {
@@ -379,12 +429,12 @@ public sealed class MainForm : Form
 
     private Profile ReadProfile()
     {
-        var cores = _coreBoxes.Where(b => b.Checked).Select(b => ((LogicalCpu)b.Tag!).Index).ToList();
+        List<int> cores = _coreBoxes.Where(b => b.Checked).Select(b => ((LogicalCpu)b.Tag!).Index).ToList();
         if (cores.Count == _coreBoxes.Count) cores.Clear();
 
-        var profile = new Profile
+        Profile profile = new()
         {
-            Name = _profiles.SelectedItem as string ?? "Unnamed",
+            Name = _profiles.SelectedItem as string ?? Lang.T.UnnamedProfile,
             MaxPercent = (int)_maxBox.Value,
             MinPercent = (int)_minBox.Value,
             Cores = cores,
@@ -400,7 +450,7 @@ public sealed class MainForm : Form
         try
         {
             _profiles.Items.Clear();
-            foreach (var profile in _store.Profiles) _profiles.Items.Add(profile.Name);
+            foreach (Profile profile in _store.Profiles) _profiles.Items.Add(profile.Name);
             int index = select is null ? -1 : _profiles.FindStringExact(select);
             if (index < 0 && _profiles.Items.Count > 0) index = 0;
             _profiles.SelectedIndex = index;
@@ -416,14 +466,14 @@ public sealed class MainForm : Form
 
     private void NewProfile()
     {
-        var name = Dialogs.AskText(this, "New profile", "Profile name (copies the values currently on screen):");
+        string? name = Dialogs.AskText(this, Lang.T.NewProfileTitle, Lang.T.NewProfilePrompt);
         if (name is null) return;
-        var profile = ReadProfile();
+        Profile profile = ReadProfile();
         profile.Name = _store.UniqueName(name);
         _store.Profiles.Add(profile);
         TrySave();
         ReloadProfileList(profile.Name);
-        AppendLog($"Profile \"{profile.Name}\" created.");
+        AppendLog(Lang.T.ProfileCreated(profile.Name));
     }
 
     private void SaveProfile()
@@ -433,81 +483,81 @@ public sealed class MainForm : Form
             NewProfile();
             return;
         }
-        var edited = ReadProfile();
+        Profile edited = ReadProfile();
         existing.MaxPercent = edited.MaxPercent;
         existing.MinPercent = edited.MinPercent;
         existing.Cores = edited.Cores;
         existing.Processes = edited.Processes;
         TrySave();
-        AppendLog($"Profile \"{existing.Name}\" saved.");
+        AppendLog(Lang.T.ProfileSaved(existing.Name));
     }
 
     private void DeleteProfile()
     {
         if (_profiles.SelectedItem is not string name || _store.Find(name) is not { } profile) return;
-        var answer = MessageBox.Show(this, $"Delete profile \"{name}\"?", "CPU-C", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        DialogResult answer = MessageBox.Show(this, Lang.T.DeleteProfileQuestion(name), "CPU-C", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
         _store.Profiles.Remove(profile);
         TrySave();
         ReloadProfileList(null);
-        AppendLog($"Profile \"{name}\" deleted.");
+        AppendLog(Lang.T.ProfileDeleted(name));
     }
 
     private void ImportProfiles()
     {
-        using var dialog = new OpenFileDialog { Filter = "CPU-C profiles (*.json)|*.json|All files|*.*", Title = "Import profiles" };
+        using OpenFileDialog dialog = new() { Filter = Lang.T.ProfilesFilterWithAll, Title = Lang.T.ImportTitle };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         try
         {
-            var imported = _store.Import(dialog.FileName);
+            List<Profile> imported = _store.Import(dialog.FileName);
             if (imported.Count == 0)
             {
-                AppendLog("The file contained no profiles.");
+                AppendLog(Lang.T.ImportEmpty);
                 return;
             }
             ReloadProfileList(imported[0].Name);
-            AppendLog($"Imported: {string.Join(", ", imported.Select(p => p.Name))}.");
+            AppendLog(Lang.T.Imported(string.Join(", ", imported.Select(p => p.Name))));
         }
         catch (Exception ex)
         {
-            ShowError("Could not import the file.", ex);
+            ShowError(Lang.T.ImportFailed, ex);
         }
     }
 
     private void ExportProfile()
     {
-        var profile = ReadProfile();
-        using var dialog = new SaveFileDialog
+        Profile profile = ReadProfile();
+        using SaveFileDialog dialog = new()
         {
-            Filter = "CPU-C profiles (*.json)|*.json",
-            Title = "Export profile",
+            Filter = Lang.T.ProfilesFilter,
+            Title = Lang.T.ExportTitle,
             FileName = string.Concat(profile.Name.Split(Path.GetInvalidFileNameChars())) + ".json",
         };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         try
         {
             ProfileStore.Export(profile, dialog.FileName);
-            AppendLog($"Profile exported to {dialog.FileName}.");
+            AppendLog(Lang.T.Exported(dialog.FileName));
         }
         catch (Exception ex)
         {
-            ShowError("Could not export the profile.", ex);
+            ShowError(Lang.T.ExportFailed, ex);
         }
     }
 
     private void TrySave()
     {
         try { _store.Save(); }
-        catch (Exception ex) { ShowError("Could not save the profiles.", ex); }
+        catch (Exception ex) { ShowError(Lang.T.SaveProfilesFailed, ex); }
     }
 
     // ---------- Programs ----------
 
     private void AddProcessNames(IEnumerable<string> names)
     {
-        foreach (var raw in names)
+        foreach (string raw in names)
         {
-            var name = Profile.CleanProcessName(raw);
+            string name = Profile.CleanProcessName(raw);
             if (name.Length == 0) continue;
             bool exists = _processes.Items.Cast<string>().Any(p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase));
             if (!exists) _processes.Items.Add(name);
@@ -518,20 +568,20 @@ public sealed class MainForm : Form
 
     private void AddExecutable()
     {
-        using var dialog = new OpenFileDialog { Filter = "Programs (*.exe)|*.exe", Title = "Choose program", Multiselect = true };
+        using OpenFileDialog dialog = new() { Filter = Lang.T.ExeFilter, Title = Lang.T.ChooseProgramTitle, Multiselect = true };
         if (dialog.ShowDialog(this) == DialogResult.OK)
             AddProcessNames(dialog.FileNames.Select(f => Path.GetFileNameWithoutExtension(f)));
     }
 
     private void AddTypedProcess()
     {
-        var name = Dialogs.AskText(this, "Add program", "Process name (e.g. pythonw or game.exe):");
+        string? name = Dialogs.AskText(this, Lang.T.AddProgramTitle, Lang.T.AddProgramPrompt);
         if (name is not null) AddProcessNames([name]);
     }
 
     private void RemoveProcesses()
     {
-        foreach (var item in _processes.SelectedItems.Cast<string>().ToList())
+        foreach (string item in _processes.SelectedItems.Cast<string>().ToList())
             _processes.Items.Remove(item);
     }
 
@@ -545,7 +595,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            ShowError("Could not apply the limit.", ex);
+            ShowError(Lang.T.ApplyFailed, ex);
         }
         UpdateStatus();
     }
@@ -558,7 +608,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            ShowError("Could not restore the CPU.", ex);
+            ShowError(Lang.T.RestoreFailed, ex);
         }
         UpdateStatus();
     }
@@ -571,7 +621,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            AppendLog("Error while watching programs: " + ex.Message);
+            AppendLog(Lang.T.WatchError(ex.Message));
         }
     }
 
@@ -580,32 +630,32 @@ public sealed class MainForm : Form
         string plan;
         try
         {
-            var (min, max) = PowerPlan.Current();
-            plan = $"Power plan now: minimum {min}%, maximum {max}%.";
+            (int min, int max) = PowerPlan.Current();
+            plan = Lang.T.PowerPlanNow(min, max);
         }
         catch (Exception ex)
         {
-            plan = "Could not read the power plan: " + ex.Message;
+            plan = Lang.T.PowerPlanReadFailed(ex.Message);
         }
 
         if (_limiter.ActiveProfile is { } active)
         {
-            _status.Text = $"LIMIT ACTIVE — profile \"{active.Name}\". {plan}";
+            _status.Text = Lang.T.StatusLimitActive(active.Name, plan);
             _status.ForeColor = Color.FromArgb(190, 80, 10);
             _tray.Icon = _iconLimited;
             Icon = _iconLimited;
-            _tray.Text = Truncate($"CPU-C: limit active ({active.Name}, max {active.MaxPercent}%)", 63);
+            _tray.Text = Truncate(Lang.T.TrayLimitActive(active.Name, active.MaxPercent), 63);
         }
         else
         {
-            _status.Text = $"Normal, no limit. {plan}";
+            _status.Text = Lang.T.StatusNormal(plan);
             _status.ForeColor = Color.FromArgb(30, 120, 70);
             _tray.Icon = _iconNormal;
             Icon = _iconNormal;
-            _tray.Text = "CPU-C: normal";
+            _tray.Text = Lang.T.TrayNormal;
         }
         _restore.Enabled = _limiter.IsActive;
-        _apply.Text = _limiter.IsActive ? "Reapply limit" : "Apply limit";
+        _apply.Text = _limiter.IsActive ? Lang.T.ReapplyLimit : Lang.T.ApplyLimit;
     }
 
     // ---------- Window, tray and shutdown ----------
@@ -615,8 +665,8 @@ public sealed class MainForm : Form
         base.OnShown(e);
         if (!_askAboutLeftover || !_limiter.IsActive) return;
 
-        var answer = MessageBox.Show(this,
-            $"A CPU limit was left active last time (profile \"{_limiter.ActiveProfile!.Name}\").\n\nRestore the CPU to normal now?",
+        DialogResult answer = MessageBox.Show(this,
+            Lang.T.LeftoverQuestion(_limiter.ActiveProfile!.Name),
             "CPU-C", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
         if (answer == DialogResult.Yes) RestoreNormal();
     }
@@ -647,7 +697,7 @@ public sealed class MainForm : Form
             {
                 if (e.CloseReason == CloseReason.UserClosing)
                 {
-                    ShowError("Could not restore the CPU. The limit is still active.", ex);
+                    ShowError(Lang.T.RestoreFailedStillActive, ex);
                     UpdateStatus();
                     e.Cancel = true;
                 }
@@ -666,7 +716,7 @@ public sealed class MainForm : Form
 
     private void RestartAsAdmin()
     {
-        var info = new ProcessStartInfo(Environment.ProcessPath!)
+        ProcessStartInfo info = new(Environment.ProcessPath!)
         {
             UseShellExecute = true,
             Verb = "runas",
@@ -689,7 +739,7 @@ public sealed class MainForm : Form
 
     private static bool IsElevated()
     {
-        using var identity = WindowsIdentity.GetCurrent();
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
@@ -698,7 +748,7 @@ public sealed class MainForm : Form
         _tray.Visible = false;
         Show();
         Application.DoEvents();
-        using var bitmap = new Bitmap(Width, Height);
+        using Bitmap bitmap = new(Width, Height);
         DrawToBitmap(bitmap, new Rectangle(Point.Empty, Size));
         bitmap.Save(file, System.Drawing.Imaging.ImageFormat.Png);
         _skipRestoreOnClose = true;
@@ -724,14 +774,14 @@ public sealed class MainForm : Form
     private static Icon MakeIcon(Color color)
     {
         ReadOnlySpan<int> sizes = [16, 24, 32, 48, 64, 256];
-        var payloads = new byte[sizes.Length][];
+        byte[][] payloads = new byte[sizes.Length][];
 
-        using var family = new FontFamily("Segoe UI");
+        using FontFamily family = new("Segoe UI");
         for (int i = 0; i < sizes.Length; i++)
         {
             int size = sizes[i];
-            using var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(bitmap))
+            using Bitmap bitmap = new(size, size, PixelFormat.Format32bppArgb);
+            using (Graphics g = Graphics.FromImage(bitmap))
             {
                 g.SmoothingMode = SmoothingMode.HighQuality;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
@@ -739,11 +789,11 @@ public sealed class MainForm : Form
 
                 float margin = size * (1f / 32f);
                 float diameter = size - 2f * margin;
-                using var brush = new SolidBrush(color);
+                using SolidBrush brush = new(color);
                 g.FillEllipse(brush, margin, margin, diameter, diameter);
 
-                using var path = new GraphicsPath();
-                using var matrix = new Matrix();
+                using GraphicsPath path = new();
+                using Matrix matrix = new();
                 path.AddString("C", family, (int)FontStyle.Bold, size * (19f / 32f), PointF.Empty, StringFormat.GenericTypographic);
                 RectangleF bounds = path.GetBounds();
                 matrix.Translate((size - bounds.Width) / 2f - bounds.Left, (size - bounds.Height) / 2f - bounds.Top);
@@ -753,7 +803,7 @@ public sealed class MainForm : Form
 
             if (size >= 256)
             {
-                using var png = new MemoryStream();
+                using MemoryStream png = new();
                 bitmap.Save(png, ImageFormat.Png);
                 payloads[i] = png.ToArray();
             }
@@ -763,8 +813,8 @@ public sealed class MainForm : Form
             }
         }
 
-        using var ico = new MemoryStream();
-        using (var bw = new BinaryWriter(ico, System.Text.Encoding.UTF8, leaveOpen: true))
+        using MemoryStream ico = new();
+        using (BinaryWriter bw = new(ico, System.Text.Encoding.UTF8, leaveOpen: true))
         {
             bw.Write((ushort)0);
             bw.Write((ushort)1);
@@ -799,8 +849,8 @@ public sealed class MainForm : Form
         int xorStride = w * 4;
         int andStride = ((w + 31) / 32) * 4;
 
-        using var ms = new MemoryStream();
-        using var bw = new BinaryWriter(ms);
+        using MemoryStream ms = new();
+        using BinaryWriter bw = new(ms);
         bw.Write(40u);
         bw.Write(w);
         bw.Write(h * 2);
@@ -813,7 +863,7 @@ public sealed class MainForm : Form
         bw.Write(0u);
         bw.Write(0u);
 
-        var data = bitmap.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        BitmapData data = bitmap.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
         try
         {
             byte[] row = new byte[xorStride];

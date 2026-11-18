@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using CpuC.Localization;
 
 namespace CpuC.Core;
 
@@ -35,7 +36,7 @@ public static class PowerPlan
 
     public static Guid ActiveScheme()
     {
-        Check(PowerGetActiveScheme(IntPtr.Zero, out var ptr), "read the active power plan");
+        Check(PowerGetActiveScheme(IntPtr.Zero, out IntPtr ptr), Lang.T.ActionReadPlan);
         try { return Marshal.PtrToStructure<Guid>(ptr); }
         finally { LocalFree(ptr); }
     }
@@ -43,36 +44,36 @@ public static class PowerPlan
     /// <summary>Captures the current values of every setting the app changes.</summary>
     public static PowerSnapshot Capture()
     {
-        var scheme = ActiveScheme();
-        var snapshot = new PowerSnapshot { Scheme = scheme };
-        foreach (var setting in MinSettings.Concat(MaxSettings))
+        Guid scheme = ActiveScheme();
+        PowerSnapshot snapshot = new() { Scheme = scheme };
+        foreach (Guid setting in MinSettings.Concat(MaxSettings))
         {
-            if (TryRead(scheme, setting, out var ac, out var dc))
+            if (TryRead(scheme, setting, out uint ac, out uint dc))
                 snapshot.Values.Add(new PowerValue { Setting = setting, Ac = ac, Dc = dc });
         }
         if (snapshot.Values.Count == 0)
-            throw new InvalidOperationException("This power plan does not expose the processor state settings.");
+            throw new InvalidOperationException(Lang.T.NoProcessorSettings);
         return snapshot;
     }
 
     /// <summary>Sets the minimum and maximum state (in %) on the active plan, for both AC and battery.</summary>
     public static void SetThrottle(int minPercent, int maxPercent)
     {
-        var scheme = ActiveScheme();
-        foreach (var setting in MinSettings) WriteIfPresent(scheme, setting, (uint)minPercent);
-        foreach (var setting in MaxSettings) WriteIfPresent(scheme, setting, (uint)maxPercent);
+        Guid scheme = ActiveScheme();
+        foreach (Guid setting in MinSettings) WriteIfPresent(scheme, setting, (uint)minPercent);
+        foreach (Guid setting in MaxSettings) WriteIfPresent(scheme, setting, (uint)maxPercent);
         Activate();
     }
 
     public static void Restore(PowerSnapshot snapshot)
     {
-        var scheme = snapshot.Scheme;
-        var sub = SubProcessor;
-        foreach (var value in snapshot.Values)
+        Guid scheme = snapshot.Scheme;
+        Guid sub = SubProcessor;
+        foreach (PowerValue value in snapshot.Values)
         {
-            var setting = value.Setting;
-            Check(PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value.Ac), "restore the power plan");
-            Check(PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value.Dc), "restore the power plan");
+            Guid setting = value.Setting;
+            Check(PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value.Ac), Lang.T.ActionRestorePlan);
+            Check(PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value.Dc), Lang.T.ActionRestorePlan);
         }
         Activate();
     }
@@ -80,23 +81,23 @@ public static class PowerPlan
     /// <summary>Minimum and maximum state in effect right now, for the current power source.</summary>
     public static (int Min, int Max) Current()
     {
-        var scheme = ActiveScheme();
+        Guid scheme = ActiveScheme();
         bool onBattery = SystemInformation.PowerStatus.PowerLineStatus == PowerLineStatus.Offline;
-        TryRead(scheme, Min0, out var minAc, out var minDc);
-        TryRead(scheme, Max0, out var maxAc, out var maxDc);
+        TryRead(scheme, Min0, out uint minAc, out uint minDc);
+        TryRead(scheme, Max0, out uint maxAc, out uint maxDc);
         return onBattery ? ((int)minDc, (int)maxDc) : ((int)minAc, (int)maxAc);
     }
 
     // Changes only take effect once the plan is re-activated.
     private static void Activate()
     {
-        var scheme = ActiveScheme();
-        Check(PowerSetActiveScheme(IntPtr.Zero, ref scheme), "activate the power plan");
+        Guid scheme = ActiveScheme();
+        Check(PowerSetActiveScheme(IntPtr.Zero, ref scheme), Lang.T.ActionActivatePlan);
     }
 
     private static bool TryRead(Guid scheme, Guid setting, out uint ac, out uint dc)
     {
-        var sub = SubProcessor;
+        Guid sub = SubProcessor;
         dc = 0;
         return PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, out ac) == 0
             && PowerReadDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, out dc) == 0;
@@ -105,16 +106,16 @@ public static class PowerPlan
     private static void WriteIfPresent(Guid scheme, Guid setting, uint value)
     {
         if (!TryRead(scheme, setting, out _, out _)) return;
-        var sub = SubProcessor;
-        Check(PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value), "change the power plan");
-        Check(PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value), "change the power plan");
+        Guid sub = SubProcessor;
+        Check(PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value), Lang.T.ActionChangePlan);
+        Check(PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, value), Lang.T.ActionChangePlan);
     }
 
     private static void Check(uint result, string action)
     {
         if (result == 0) return;
-        var reason = new Win32Exception((int)result).Message;
-        throw new InvalidOperationException($"Could not {action}: {reason} (code {result}).");
+        string reason = new Win32Exception((int)result).Message;
+        throw new InvalidOperationException(Lang.T.CouldNot(action, reason, result));
     }
 
     [DllImport("powrprof.dll")]

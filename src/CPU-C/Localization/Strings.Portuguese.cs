@@ -1,0 +1,125 @@
+namespace CpuC.Localization;
+
+public sealed partial class Strings
+{
+    public static readonly Strings Portuguese = new()
+    {
+        Code = "pt",
+        NativeName = "Português",
+
+        NewProfileName = "Novo perfil",
+        FallbackProfileName = "Perfil",
+        UnnamedProfile = "Sem nome",
+        DefaultWeakPc = "PC fraco",
+        DefaultVeryWeakPc = "PC muito fraco",
+        EmptyProfileFile = "Arquivo de perfil vazio.",
+
+        CpuLimited = (min, max) => $"CPU limitada: mínimo {min}%, máximo {max}%.",
+        CpuRestored = (min, max) => $"CPU restaurada: mínimo {min}%, máximo {max}%.",
+        CoresNoRestriction = "Núcleos: sem restrição.",
+        CoresNoPrograms = "Núcleos: nenhum programa na lista, nada para prender.",
+        NoListedProgramRunning = "Nenhum dos programas listados está aberto. Os núcleos serão presos quando eles abrirem.",
+        CoresPinned = (name, pid) => $"{name} (PID {pid}): núcleos presos.",
+        CoresReleased = (name, pid) => $"{name} (PID {pid}): núcleos liberados.",
+        AffinityFailed = (name, pid, reason) => $"{name} (PID {pid}): falhou ({reason}). Tente abrir o CPU-C como administrador.",
+
+        ActionReadPlan = "ler o plano de energia ativo",
+        ActionChangePlan = "alterar o plano de energia",
+        ActionRestorePlan = "restaurar o plano de energia",
+        ActionActivatePlan = "ativar o plano de energia",
+        CouldNot = (action, reason, code) => $"Não foi possível {action}: {reason} (código {code}).",
+        NoProcessorSettings = "Este plano de energia não expõe as configurações de estado do processador.",
+        PowerPlanNow = (min, max) => $"Plano de energia agora: mínimo {min}%, máximo {max}%.",
+
+        AlreadyRunning = "O CPU-C já está aberto. Procure o ícone dele na bandeja do sistema.",
+        CliGiveProfileName = "Informe o nome do perfil: CPU-C.exe --apply \"PC fraco\"",
+        CliProfileNotFound = (name, profiles) => $"Perfil \"{name}\" não encontrado. Perfis: {profiles}",
+        CliLimitStaysActive = "O limite fica ativo até você rodar: CPU-C.exe --restore",
+        CliNoActiveLimit = "Nenhum limite ativo.",
+        CliLimitActive = name => $"Limite ativo: perfil \"{name}\".",
+        CliLogicalCpus = (count, kinds) => $"CPUs lógicas: {count}{kinds}.",
+        CliUsage = "Uso: CPU-C.exe [--apply \"perfil\" | --restore | --status] [--lang en|pt]\nSem argumentos, abre a janela.",
+        CliError = message => "Erro: " + message,
+
+        Ok = "OK",
+        Cancel = "Cancelar",
+        Add = "Adicionar",
+
+        RunningProgramsTitle = "Programas em execução",
+        FilterPlaceholder = "Filtrar…",
+
+        WindowTitle = "CPU-C — Controlador de CPU",
+        LanguageLabel = "Idioma:",
+        ProfileLabel = "Perfil:",
+        New = "Novo",
+        Save = "Salvar",
+        Delete = "Excluir",
+        Import = "Importar",
+        Export = "Exportar",
+
+        SpeedGroup = "Velocidade da CPU (estado do processador)",
+        Maximum = "Máximo",
+        Minimum = "Mínimo",
+        LowLimitWarning = limit => $"Atenção: com {limit}% ou menos, todo o Windows pode ficar muito lento.",
+
+        CoresGroup = "Núcleos permitidos",
+        CoreKindFast = "núcleo rápido (P-core)",
+        CoreKindSlow = "núcleo lento (E-core)",
+        CoreKindNormal = "núcleo",
+        CoreTooltip = (index, kind, physical) => $"CPU {index}: {kind}, núcleo físico {physical}",
+        AllCores = "Todos",
+        OnlyPCores = "Só P-cores",
+        OnlyECores = "Só E-cores",
+        NoCores = "Nenhum",
+        CoresHint = "Vale só para os programas listados abaixo. Com todos (ou nenhum) marcados, os núcleos não são restringidos.",
+
+        ProgramsGroup = "Programas presos aos núcleos permitidos",
+        AddRunning = "Em execução…",
+        AddExe = "Escolher .exe…",
+        TypeName = "Digitar nome…",
+        Remove = "Remover",
+
+        ApplyLimit = "Aplicar limite",
+        ReapplyLimit = "Reaplicar limite",
+        RestoreNormal = "Restaurar normal",
+        RestartAsAdmin = "Reabrir como administrador",
+
+        StatusLimitActive = (name, plan) => $"LIMITE ATIVO — perfil \"{name}\". {plan}",
+        StatusNormal = plan => $"Normal, sem limite. {plan}",
+        PowerPlanReadFailed = message => "Não foi possível ler o plano de energia: " + message,
+
+        TrayOpen = "Abrir CPU-C",
+        TrayApply = name => $"Aplicar: {name}",
+        TrayExit = "Sair",
+        TrayLimitActive = (name, max) => $"CPU-C: limite ativo ({name}, máx. {max}%)",
+        TrayNormal = "CPU-C: normal",
+
+        NewProfileTitle = "Novo perfil",
+        NewProfilePrompt = "Nome do perfil (copia os valores que estão na tela):",
+        ProfileCreated = name => $"Perfil \"{name}\" criado.",
+        ProfileSaved = name => $"Perfil \"{name}\" salvo.",
+        DeleteProfileQuestion = name => $"Excluir o perfil \"{name}\"?",
+        ProfileDeleted = name => $"Perfil \"{name}\" excluído.",
+        ProfilesFilterWithAll = "Perfis do CPU-C (*.json)|*.json|Todos os arquivos|*.*",
+        ProfilesFilter = "Perfis do CPU-C (*.json)|*.json",
+        ImportTitle = "Importar perfis",
+        ImportEmpty = "O arquivo não tinha nenhum perfil.",
+        Imported = names => $"Importados: {names}.",
+        ImportFailed = "Não foi possível importar o arquivo.",
+        ExportTitle = "Exportar perfil",
+        Exported = file => $"Perfil exportado para {file}.",
+        ExportFailed = "Não foi possível exportar o perfil.",
+        SaveProfilesFailed = "Não foi possível salvar os perfis.",
+
+        ExeFilter = "Programas (*.exe)|*.exe",
+        ChooseProgramTitle = "Escolher programa",
+        AddProgramTitle = "Adicionar programa",
+        AddProgramPrompt = "Nome do processo (ex.: pythonw ou jogo.exe):",
+
+        ApplyFailed = "Não foi possível aplicar o limite.",
+        RestoreFailed = "Não foi possível restaurar a CPU.",
+        RestoreFailedStillActive = "Não foi possível restaurar a CPU. O limite continua ativo.",
+        WatchError = message => "Erro ao vigiar os programas: " + message,
+        LeftoverQuestion = name => $"Um limite de CPU ficou ativo da última vez (perfil \"{name}\").\n\nRestaurar a CPU ao normal agora?",
+    };
+}
