@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using CpuC.Core;
@@ -722,30 +723,122 @@ public sealed class MainForm : Form
 
     private static Icon MakeIcon(Color color)
     {
-        using var bitmap = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bitmap))
+        ReadOnlySpan<int> sizes = [16, 24, 32, 48, 64, 256];
+        var payloads = new byte[sizes.Length][];
+
+        using var family = new FontFamily("Segoe UI");
+        for (int i = 0; i < sizes.Length; i++)
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-            g.Clear(Color.Transparent);
-            using var brush = new SolidBrush(color);
-            g.FillEllipse(brush, 1, 1, 30, 30);
-            using var font = new Font("Segoe UI", 19F, FontStyle.Bold, GraphicsUnit.Pixel);
-            using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString("C", font, Brushes.White, new RectangleF(0, 0, 32, 31), format);
+            int size = sizes[i];
+            using var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bitmap))
+            {
+                g.SmoothingMode = SmoothingMode.HighQuality;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.Clear(Color.Transparent);
+
+                float margin = size * (1f / 32f);
+                float diameter = size - 2f * margin;
+                using var brush = new SolidBrush(color);
+                g.FillEllipse(brush, margin, margin, diameter, diameter);
+
+                using var path = new GraphicsPath();
+                using var matrix = new Matrix();
+                path.AddString("C", family, (int)FontStyle.Bold, size * (19f / 32f), PointF.Empty, StringFormat.GenericTypographic);
+                RectangleF bounds = path.GetBounds();
+                matrix.Translate((size - bounds.Width) / 2f - bounds.Left, (size - bounds.Height) / 2f - bounds.Top);
+                path.Transform(matrix);
+                g.FillPath(Brushes.White, path);
+            }
+
+            if (size >= 256)
+            {
+                using var png = new MemoryStream();
+                bitmap.Save(png, ImageFormat.Png);
+                payloads[i] = png.ToArray();
+            }
+            else
+            {
+                payloads[i] = EncodeIconDib(bitmap);
+            }
         }
-        IntPtr handle = bitmap.GetHicon();
+
+        using var ico = new MemoryStream();
+        using (var bw = new BinaryWriter(ico, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write((ushort)0);
+            bw.Write((ushort)1);
+            bw.Write((ushort)sizes.Length);
+
+            int offset = 6 + 16 * sizes.Length;
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                int size = sizes[i];
+                bw.Write((byte)(size >= 256 ? 0 : size));
+                bw.Write((byte)(size >= 256 ? 0 : size));
+                bw.Write((byte)0);
+                bw.Write((byte)0);
+                bw.Write((ushort)1);
+                bw.Write((ushort)32);
+                bw.Write((uint)payloads[i].Length);
+                bw.Write((uint)offset);
+                offset += payloads[i].Length;
+            }
+            for (int i = 0; i < sizes.Length; i++)
+                bw.Write(payloads[i]);
+        }
+
+        ico.Position = 0;
+        return new Icon(ico);
+    }
+
+    private static byte[] EncodeIconDib(Bitmap bitmap)
+    {
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+        int xorStride = w * 4;
+        int andStride = ((w + 31) / 32) * 4;
+
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+        bw.Write(40u);
+        bw.Write(w);
+        bw.Write(h * 2);
+        bw.Write((ushort)1);
+        bw.Write((ushort)32);
+        bw.Write(0u);
+        bw.Write((uint)((xorStride + andStride) * h));
+        bw.Write(0);
+        bw.Write(0);
+        bw.Write(0u);
+        bw.Write(0u);
+
+        var data = bitmap.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
         try
         {
-            using var temp = Icon.FromHandle(handle);
-            return (Icon)temp.Clone();
+            byte[] row = new byte[xorStride];
+            for (int y = h - 1; y >= 0; y--)
+            {
+                Marshal.Copy(data.Scan0 + y * data.Stride, row, 0, xorStride);
+                bw.Write(row);
+            }
+            byte[] maskRow = new byte[andStride];
+            for (int y = h - 1; y >= 0; y--)
+            {
+                Array.Clear(maskRow);
+                Marshal.Copy(data.Scan0 + y * data.Stride, row, 0, xorStride);
+                for (int x = 0; x < w; x++)
+                {
+                    if (row[x * 4 + 3] == 0)
+                        maskRow[x >> 3] |= (byte)(0x80 >> (x & 7));
+                }
+                bw.Write(maskRow);
+            }
         }
         finally
         {
-            DestroyIcon(handle);
+            bitmap.UnlockBits(data);
         }
+        return ms.ToArray();
     }
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr handle);
 }

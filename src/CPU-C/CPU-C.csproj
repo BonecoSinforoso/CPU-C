@@ -7,6 +7,7 @@
     <AssemblyName>CPU-C</AssemblyName>
     <Product>CPU-C</Product>
     <Description>CPU Controller: temporarily weakens the processor for testing.</Description>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>0.1.0</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
