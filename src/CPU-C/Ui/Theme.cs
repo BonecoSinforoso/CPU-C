@@ -15,14 +15,33 @@ internal static class Theme
     public static void Apply(AppTheme theme)
     {
         Applied = theme;
-#pragma warning disable WFO5001 // Dark mode in Windows Forms is still marked experimental.
-        Application.SetColorMode(theme switch
+        bool dark = theme switch
         {
-            AppTheme.Light => SystemColorMode.Classic,
-            AppTheme.Dark => SystemColorMode.Dark,
-            _ => SystemColorMode.System,
-        });
+            AppTheme.Light => false,
+            AppTheme.Dark => true,
+            _ => WindowsUsesDarkApps(),
+        };
+#pragma warning disable WFO5001 // Dark mode in Windows Forms is still marked experimental.
+        Application.SetColorMode(dark ? SystemColorMode.Dark : SystemColorMode.Classic);
 #pragma warning restore WFO5001
+    }
+
+    /// <summary>
+    /// The "app mode" chosen in Windows settings. Read directly because
+    /// <c>SystemColorMode.System</c> only detects dark mode on Windows 11.
+    /// </summary>
+    private static bool WindowsUsesDarkApps()
+    {
+        try
+        {
+            using Microsoft.Win32.RegistryKey? key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return key?.GetValue("AppsUseLightTheme") is int light && light == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static bool IsDark => Application.IsDarkModeEnabled;

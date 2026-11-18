@@ -20,6 +20,7 @@ public sealed class AppSettings
     /// <summary>Interface theme. Unknown values in the file fall back to <see cref="AppTheme.System"/>.</summary>
     public string Theme { get; set; } = "";
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public AppTheme ThemeChoice
     {
         get => Enum.TryParse(Theme, ignoreCase: true, out AppTheme theme) ? theme : AppTheme.System;
